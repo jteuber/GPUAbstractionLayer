@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4a4eca24-a92d-4026-ab5e-8d59ba158f07}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{646e52c7-2233-410a-a3e8-a5905d214aa1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ArgumentTools.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cuda_.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CudaTools.cuh">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DevMem.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GPUAbstractionLayer_global.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GPUWrapper.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\helper_cuda.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\helper_string.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Kernel.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Log.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\OpenCL.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\OpenCLTools.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\ArgumentTools.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Cuda.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DevMem.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GPUWrapper.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Kernel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Log.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\OpenCL.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\OpenCLTools.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="src\CudaTools.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
