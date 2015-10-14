@@ -1,6 +1,6 @@
 # GPUAbstractionLayer
 
-This is a first version of the abstraction layer for CUDA and OpenCL as introduced in the Paper "A Framework for Transparent Execution ofMassively-Parallel Applications on CUDA and OpenCL" on the EuroVR 2015.
+This is a first version of the abstraction layer for CUDA and OpenCL as introduced in the Paper "A Framework for Transparent Execution of Massively-Parallel Applications on CUDA and OpenCL" on the EuroVR 2015.
 It is the independend version of what we used to port the ProtoSphere sphere-packing-library to OpenCL.
 
 # DEPENDENCIES
@@ -19,6 +19,7 @@ simple example program:
 
 create a .cu file
 
+```
 // number of threads in one execution block on the device
 const unsigned int threads_per_block = 256;
 
@@ -69,3 +70,4 @@ void main()
     myKernelCaller( 1000000, device_array );
     device_array->copyToHost( host_array );
 }
+```
