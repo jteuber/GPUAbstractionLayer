@@ -48,7 +48,7 @@ void myKernelCaller( int nrOfThreads, DevMem<float>* device_array)
     else if(gpu->getType() == GPOpenCL )
     {
         static Kernel* spKernel = NULL;
-        if( spKernel == NULL )	  spKernel = gpu->getRawOpenCL()->createKernel( strOCLKernel );
+        if( spKernel == NULL )	  spKernel = gpu->getRawOpenCL()->createKernel( strOCLKernel );
         spKernel->execute( nrOfThreads, threadsPerBlock, nrOfThreads, device_array->getOCL() );
     }
 }
