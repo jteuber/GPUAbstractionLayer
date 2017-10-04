@@ -6,13 +6,9 @@ It is the independend version of what we used to port the ProtoSphere sphere-pac
 # DEPENDENCIES
 CUDA v6.0 or higher
 boost (the current official release)
-boost::compute (the current master. Simply place it in the boost install directory)
 
 # BUILDING
-Currently, there is only a visual studio 2013 project file, a SCons script (http://www.scons.org/) for platform independency will follow shortly.
-
-Visual Studio:
-Open the provided solution file and check the include directories in the project configuration. Then build the configuration of your choosing and use the dll file in the project you want to port.
+The GPUAbstractionLayer uses CMake (https://cmake.org/) to provide platform independent build support.
 
 # USAGE
 simple example program:
@@ -30,10 +26,10 @@ __global__ void myKernel( int nrOfThreads, float* device_array )
 }
 
 // OpenCL kernel
-const std::string strOCLKernel = 
+const std::string strOCLKernel =
 "__kernel void myKernel( int nrOfThreads, __global float* device_array )\n"
 "{\n"
-"   ...\n" 
+"   ...\n"
 "}\n";
 
 // kernel caller function
@@ -62,7 +58,7 @@ void main()
 
     // generate random numbers on the host
     float host_array[ 1000000 ];
-    	...
+        ...
     // create a new array on the device and copy the array to the device
     DevMem<float>* device_array = gpu->copyToDev( host_array, 1000000 );
     // sort the array and download it from the device
