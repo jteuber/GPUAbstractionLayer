@@ -1,3 +1,5 @@
+#ifdef USE_CUDA
+
 #include "Cuda_.h"
 
 #include "CudaTools.cuh"
@@ -78,15 +80,25 @@ bool Cuda::init( unsigned int uiDevice )
 }
 
 
-void Cuda::devDelete(void* devPtr)
+void Cuda::devDelete(void* devPtr, size_t sizeInBytes)
 {
 	pseCheckCudaErrors( cudaFree( devPtr ) );
+	m_reservedMemory -= sizeInBytes;
 }
 
 
-unsigned int Cuda::getTotalAvailableVRAM() const
+unsigned int Cuda::getTotalAvailableVRAM()
 {
-	return m_cudaDeviceProps.totalGlobalMem;
+	size_t freeMem, totalMem;
+	pseCheckCudaErrors( cudaMemGetInfo( &freeMem, &totalMem ) );
+	return totalMem;
+}
+
+int Cuda::getFreeVRAM()
+{
+	size_t freeMem, totalMem;
+	pseCheckCudaErrors( cudaMemGetInfo( &freeMem, &totalMem ) );
+	return freeMem-m_reservedMemory;
 }
 
 
@@ -118,9 +130,12 @@ void Cuda::sort( float* dKeys, unsigned int* dValues, size_t numElements )
 
 
 Cuda::Cuda()
+    : m_reservedMemory( 0 )
 {
 }
 
 Cuda::~Cuda()
 {
 }
+
+#endif // USE_CUDA

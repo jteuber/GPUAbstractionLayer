@@ -1,6 +1,7 @@
 
 #include "CudaTools.cuh"
 
+#ifdef USE_CUDA
 #include <thrust/scan.h>
 #include <thrust/sort.h>
 #include <thrust/device_ptr.h>
@@ -31,3 +32,4 @@ void sortFloatUInt( float* dKeys, unsigned int* dValues, size_t numElements )
 	thrust::stable_sort_by_key( thrust::device_ptr<float>(dKeys), thrust::device_ptr<float>(dKeys + numElements), thrust::device_ptr<unsigned int>(dValues) );
 }
 
+#endif // USE_CUDA

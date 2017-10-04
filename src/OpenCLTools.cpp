@@ -1,3 +1,5 @@
+#ifdef USE_OPENCL
+
 /*
  * OpenCLTools.cpp
  *
@@ -72,3 +74,5 @@ const char* errorNumberToString(int error)
 	  }
 	  return "OOPS!! UNHANDLED CASE IN SWITCH";
 }
+
+#endif // USE_OPENCL

@@ -1,12 +1,15 @@
 #ifndef CUDA_H
 #define CUDA_H
 
+#ifdef USE_CUDA
+
 #ifdef linux
 #include <execinfo.h>
 #include <signal.h>
 #endif
 
 #include <cuda_runtime.h>
+#include <driver_types.h>
 #include <helper_cuda.h>
 
 #include "Log.h"
@@ -24,7 +27,7 @@ public:
 	template<typename T> T* devNew( unsigned int size = 1 );
 	template<typename T> static void devMemSet( T* deviceData, unsigned int size = 1, int data = 0 );
 
-	static void devDelete(void *devPtr);
+	void devDelete(void *devPtr, size_t sizeInBytes);
 
 	template<typename T> static void copyFromDev( T* hostData, const T* deviceData, unsigned int size = 1 );
 	template<typename T> static void copyToDev( T* deviceData, const T* hostData, unsigned int size = 1 );
@@ -36,7 +39,8 @@ public:
 	static void sort( unsigned int* dKeys, unsigned int* dValues, size_t numElements );
 	static void sort( float* dKeys, unsigned int* dValues, size_t numElements );
 
-	unsigned int getTotalAvailableVRAM() const;
+	unsigned int getTotalAvailableVRAM();
+	int getFreeVRAM();
 
 private:
 	Cuda();
@@ -44,6 +48,7 @@ private:
 
 private:
 	cudaDeviceProp m_cudaDeviceProps;
+	size_t m_reservedMemory;
 };
 
 
@@ -274,9 +279,11 @@ T* Cuda::devNew(unsigned int size)
 	// check whether there is enough memory available
 	size_t freeMem, totalMem;
 	pseCheckCudaErrors( cudaMemGetInfo( &freeMem, &totalMem ) );
-	if( freeMem < uiCompleteSize )
+	if( freeMem < uiCompleteSize + m_reservedMemory )
 		Log::getLog("GPUAbstractionLayer").logWarning( "Device will probably run out of memory now..." );
 	// for now just go on even if there probably is not enough
+
+	m_reservedMemory += uiCompleteSize;
 
 	// allocate the memory
 	if( !pseCheckCudaErrors(cudaMalloc((void**)&pTemp, uiCompleteSize)) )
@@ -326,5 +333,177 @@ void Cuda::copyDevToDev(T* dest, const T* src, unsigned int size, unsigned int o
 	pseCheckCudaErrors( cudaMemcpy( (char *) dest + ( sizeof(T) * offset ), src, sizeof(T) * size, cudaMemcpyDeviceToDevice ) );
 }
 
+#else
+
+__declspec(align(8)) struct short3_t
+{
+	short x, y, z;
+};
+typedef struct short3_t short3;
+
+__declspec(align(8)) struct short4_t
+{
+	short x, y, z, w;
+};
+typedef struct short4_t short4;
+
+__declspec(align(16)) struct int3_t
+{
+	int x, y, z;
+};
+typedef struct int3_t int3;
+
+typedef unsigned int uint;
+
+__declspec(align(16)) struct uint3_t
+{
+	unsigned int x, y, z;
+};
+typedef struct uint3_t uint3;
+
+__declspec(align(16)) struct uint4_t
+{
+	unsigned int x, y, z, w;
+};
+typedef struct uint4_t uint4;
+
+__declspec(align(16)) struct float3_t
+{
+	float x, y, z;
+};
+typedef struct float3_t float3;
+
+__declspec(align(16)) struct float4_t
+{
+	float x, y, z, w;
+};
+typedef struct float4_t float4;
+
+inline float3 operator+(const float3& a, const float3& b)
+{
+	return float3{ a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+inline float3 operator+=(float3& a, const float b)
+{
+	a.x += b;
+	a.y += b;
+	a.z += b;
+	return a;
+}
+
+inline float3 operator-(const float3& a, const float3& b)
+{
+	return float3{ a.x - b.x, a.y - b.y, a.z - b.z };
+}
+
+inline uint4 operator-(const uint4& a, const uint4& b)
+{
+	return uint4{ a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+}
+
+inline float3 operator-=(float3& a, const float b)
+{
+	a.x -= b;
+	a.y -= b;
+	a.z -= b;
+	return a;
+}
+
+inline float3 operator*(const float3& a, const float& b)
+{
+	return float3{ a.x * b, a.y * b, a.z * b };
+}
+
+inline uint3 operator*=(uint3 &a, const uint& b)
+{
+	a.x *= b;
+	a.y *= b;
+	a.z *= b;
+	return a;
+}
+
+inline float3 operator*=(float3 &a, float3& b)
+{
+	a.x *= b.x;
+	a.y *= b.y;
+	a.z *= b.z;
+	return a;
+}
+
+inline float3 operator*=(float3 &a, const float& b)
+{
+	a.x *= b;
+	a.y *= b;
+	a.z *= b;
+	return a;
+}
+
+inline uint3 make_uint3( const uint& a )
+{
+	return uint3{ a, a, a };
+}
+
+inline short4 make_short4( const short& x, const short& y, const short& z, const short& w )
+{
+	return short4{ x, y, z, w };
+}
+
+inline uint4 make_uint4( const uint& a )
+{
+	return uint4{ a, a, a, a };
+}
+
+inline uint4 make_uint4( const uint3& a, const uint& b )
+{
+	return uint4{ a.x, a.y, a.z, b };
+}
+
+inline uint4 make_uint4( const uint& x, const uint& y, const uint& z, const uint& w )
+{
+	return uint4{ x, y, z, w };
+}
+
+inline float3 make_float3( const float& a )
+{
+	return float3{ a, a, a };
+}
+
+inline float3 make_float3( const float& x, const float& y, const float& z )
+{
+	return float3{ x, y, z };
+}
+
+inline float3 make_float3( const float4& a )
+{
+	return float3{ a.x, a.y, a.z };
+}
+
+inline float4 make_float4( const float& a )
+{
+	return float4{ a, a, a, a };
+}
+
+inline float4 make_float4( const float3& a, const float& b )
+{
+	return float4{ a.x, a.y, a.z, b };
+}
+
+inline float4 make_float4( const float& x, const float& y, const float& z, const float& w )
+{
+	return float4{ x, y, z, w };
+}
+
+inline float dot( float3 a, float3 b )
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+inline float3 cross( const float3& a, const float3& b )
+{
+	return float3{ a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x };
+}
+
+#endif // USE_CUDA
 
 #endif // CUDA_H

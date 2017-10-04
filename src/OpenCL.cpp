@@ -1,3 +1,5 @@
+#ifdef USE_OPENCL
+
 #include "OpenCL.h"
 
 #include <algorithm>
@@ -9,12 +11,10 @@
 
 #include "Log.h"
 #include "ArgumentTools.h"
-//#include "GridStructs.h"
 
 
 //BOOST_COMPUTE_TYPE_NAME(short4_ocl, cl_short4);
 BOOST_COMPUTE_ADAPT_STRUCT(short4, short4, (x,y,z,w));
-//BOOST_COMPUTE_ADAPT_STRUCT(CellOnDevice, CellOnDevice, (m_triangleStartIndex, m_nrOfTriangles, m_sphereStartIndex, m_sphereEndIndex, m_coords, m_status, m_discreteDistance));
 
 
 bool OpenCL::init(int argc, const char** argv)
@@ -33,122 +33,107 @@ bool OpenCL::init(int argc, const char** argv)
 bool OpenCL::init( unsigned int uiPlatform, unsigned int uiDevice )
 {
 	int iErr;
+	cl_platform_id * pPlatformIDs = NULL;
+	cl_uint uiNrOfPlatforms = 0;
+	char acNameBuffer[128] = { 0 };
 
-#ifdef DEBUG
-	cl_platform_id * platformsTest = NULL;
-	char vendor_name[128] = {0};
-	cl_uint num_platforms = 0;
-// get number of available platforms
-	cl_int err = clGetPlatformIDs(0, NULL, & num_platforms);
-	if (CL_SUCCESS != err)
+	// get number of available platforms
+	cl_int err = clGetPlatformIDs( 0, NULL, &uiNrOfPlatforms );
+	if ( CL_SUCCESS != err )
+		return false;
+
+	// get all platform IDs
+	pPlatformIDs = new cl_platform_id[uiNrOfPlatforms];
+	iErr = clGetPlatformIDs( uiNrOfPlatforms, pPlatformIDs, NULL );
+	if ( iErr != CL_SUCCESS )
 	{
-			// handle error
+		Log::getLog( "ProtoSphere" ) << Log::EL_ERROR << "Error getting OpenCL platform (" << errorNumberToString( iErr ) << ")" << Log::endl;
+		return false;
 	}
-	platformsTest = new cl_platform_id[num_platforms];
-	if (NULL == platformsTest)
-	{
-			// handle error
-	}
-	err = clGetPlatformIDs(num_platforms, platformsTest, NULL);
-	if (CL_SUCCESS != err)
-	{
-			// handle error
-	}
-	for (cl_uint ui=0; ui< num_platforms; ++ui)
-	{
-		err = clGetPlatformInfo(platformsTest[ui],
-					  CL_PLATFORM_VENDOR,
-					  128 * sizeof(char),
-					  vendor_name,
-					  NULL);
-		if (CL_SUCCESS != err)
-		{
-				// handle error
-		}
-		if (vendor_name != NULL)
-		{
-			Log::getLog("GPUAbstractionLayer") << Log::EL_INFO << "OpenCL platform id " << ui+1 << ": " << vendor_name << Log::endl;
-		}
-	}
-#endif
 
 	// get the platform. Either the one given by the user via the command line or simply the first one
 	int platformID = 1;
-	if( uiPlatform > 0 )
+	if ( uiPlatform > 0 )
 		platformID = uiPlatform;
 
-	cl_platform_id* platforms = new cl_platform_id[platformID];
-	iErr = clGetPlatformIDs( platformID, platforms, NULL );
-	if( iErr != CL_SUCCESS )
+	cl_platform_id platformInUse = pPlatformIDs[platformID - 1];
+
+	// print out the list of platforms and devices and mark the entry we will use
+	for ( cl_uint i = 0; i < uiNrOfPlatforms; ++i )
 	{
-		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error getting OpenCL platform (" << errorNumberToString( iErr ) << ")" << Log::endl;
-		return false;
+		err = clGetPlatformInfo( pPlatformIDs[i],
+			CL_PLATFORM_VENDOR,
+			128 * sizeof( char ),
+			acNameBuffer,
+			NULL );
+		if ( CL_SUCCESS != err )
+			return false;
+
+		if ( acNameBuffer != NULL )
+		{
+			Log::getLog( "ProtoSphere" ) << Log::EL_INFO << "OpenCL platform id " << i + 1 << ": " << acNameBuffer << Log::endl;
+
+			cl_uint num_devices = 0;
+			iErr = clGetDeviceIDs( pPlatformIDs[i], CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices );
+
+			cl_device_id* pDeviceIDs = new cl_device_id[num_devices];
+			iErr = clGetDeviceIDs( pPlatformIDs[i], CL_DEVICE_TYPE_ALL, num_devices, pDeviceIDs, NULL );
+
+			cl_device_id defaultDevice;
+			iErr = clGetDeviceIDs( pPlatformIDs[i], CL_DEVICE_TYPE_DEFAULT, 1, &defaultDevice, NULL );
+			if ( iErr != CL_SUCCESS )
+			{
+				Log::getLog( "ProtoSphere" ) << Log::EL_ERROR << "Error getting default OpenCL device (" << errorNumberToString( iErr ) << ")" << Log::endl;
+				return false;
+			}
+
+			for ( unsigned j = 0; j < num_devices; ++j )
+			{
+				char deviceName[48];
+				cl_device_type devType;
+
+				clGetDeviceInfo( pDeviceIDs[j], CL_DEVICE_NAME, 48, &deviceName, NULL );
+				clGetDeviceInfo( pDeviceIDs[j], CL_DEVICE_TYPE, sizeof( cl_device_type ), &devType, NULL );
+
+				Log::getLog( "ProtoSphere" ) << Log::EL_INFO;
+				if ( i == platformID - 1 && (uiDevice == 0 ? pDeviceIDs[j] == defaultDevice : uiDevice == j + 1) )
+				{
+					Log::getLog( "ProtoSphere" ) << "->";
+					m_device = pDeviceIDs[j];
+				}
+				Log::getLog( "ProtoSphere" ) << "\t";
+				Log::getLog( "ProtoSphere" ) << std::string( (devType == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU" );
+				Log::getLog( "ProtoSphere" ) << " Device " << std::string( deviceName );
+				if ( pDeviceIDs[j] == defaultDevice )
+					Log::getLog( "ProtoSphere" ) << " (default)";
+				Log::getLog( "ProtoSphere" ) << Log::endl;
+			}
+		}
 	}
-
-	cl_platform_id platformInUse = platforms[platformID-1];
-
-	// get the device, again either the one specified via command line or the first default device
-	if( uiDevice > 0 )
-	{
-		int deviceID = uiDevice;
-		cl_device_id* devices = new cl_device_id[deviceID];
-
-		iErr = clGetDeviceIDs( platformInUse, CL_DEVICE_TYPE_ALL, deviceID, devices, NULL );
-		m_device = devices[deviceID-1];
-	}
-	else
-	{
-		iErr = clGetDeviceIDs( platformInUse, CL_DEVICE_TYPE_DEFAULT, 1, &m_device, NULL );
-	}
-
-	if( iErr != CL_SUCCESS )
-	{
-		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error getting default OpenCL device (" << errorNumberToString( iErr ) << ")" << Log::endl;
-		return false;
-	}
-
-
-	// write to the log which device will be used
-	char platformName[48];
-	char deviceName[ 48 ];
-	cl_device_type devType;
-
-	clGetPlatformInfo( platformInUse, CL_PLATFORM_NAME, 48, &platformName, NULL );
-	clGetDeviceInfo( m_device, CL_DEVICE_NAME, 48, &deviceName, NULL );
-	clGetDeviceInfo( m_device, CL_DEVICE_TYPE, sizeof( cl_device_type ), &devType, NULL );
-
-	Log::getLog("GPUAbstractionLayer") << Log::EL_INFO << "using ";
-	if( devType == CL_DEVICE_TYPE_GPU )
-		Log::getLog("GPUAbstractionLayer") << "GPU";
-	else
-		Log::getLog("GPUAbstractionLayer") << "CPU";
-	Log::getLog("GPUAbstractionLayer") << " Device " << std::string( deviceName ) << " on platform " << std::string( platformName ) << Log::endl;
-
-	m_strPlatformName.assign( platformName );
 
 	// create the context
-	cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties) platformInUse, 0 };
+	cl_context_properties properties[] = { CL_CONTEXT_PLATFORM, (cl_context_properties)platformInUse, 0 };
 
 	m_context = clCreateContext( properties, 1, &m_device, NULL, NULL, &iErr );
-	if( iErr != CL_SUCCESS )
+	if ( iErr != CL_SUCCESS )
 	{
-		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error creating the OpenCL context (" << errorNumberToString( iErr ) << ")" << Log::endl;
+		Log::getLog( "ProtoSphere" ) << Log::EL_ERROR << "Error creating the OpenCL context (" << errorNumberToString( iErr ) << ")" << Log::endl;
 		return false;
 	}
 
 	m_commandQueue = clCreateCommandQueue( m_context, m_device, 0, &iErr );
-	if( iErr != CL_SUCCESS )
+	if ( iErr != CL_SUCCESS )
 	{
-		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error creating an OpenCL command queue within the just created context (" << errorNumberToString( iErr ) << ")" << Log::endl;
+		Log::getLog( "ProtoSphere" ) << Log::EL_ERROR << "Error creating an OpenCL command queue within the just created context (" << errorNumberToString( iErr ) << ")" << Log::endl;
 		return false;
 	}
 
 	size_t returned_size = 0;
 	size_t max_workgroup_size = 0;
-	iErr = clGetDeviceInfo( m_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_workgroup_size, &returned_size );
-	if (iErr != CL_SUCCESS)
+	iErr = clGetDeviceInfo( m_device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof( size_t ), &max_workgroup_size, &returned_size );
+	if ( iErr != CL_SUCCESS )
 	{
-		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Failed to retrieve device info (" << errorNumberToString( iErr ) << ")" << Log::endl;
+		Log::getLog( "ProtoSphere" ) << Log::EL_ERROR << "Failed to retrieve device info (" << errorNumberToString( iErr ) << ")" << Log::endl;
 		return false;
 	}
 
@@ -157,11 +142,13 @@ bool OpenCL::init( unsigned int uiPlatform, unsigned int uiDevice )
 	return true;
 }
 
-void OpenCL::devDelete(cl_mem dData)
+void OpenCL::devDelete( cl_mem dData, size_t sizeInBytes )
 {
 	int iErr = clReleaseMemObject( dData );
 	if( iErr != CL_SUCCESS )
 		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error releasing an OpenCL buffer (" << errorNumberToString( iErr ) << ")" << Log::endl;
+
+	m_reservedMemory -= sizeInBytes;
 }
 
 void OpenCL::scan(cl_mem dOut, cl_mem dIn, size_t numElements)
@@ -175,7 +162,7 @@ void OpenCL::scan(cl_mem dOut, cl_mem dIn, size_t numElements)
 
 	queue.finish();
 
-//	m_pScanner->scan( dOut, dIn, numElements );
+	//m_pScanner->scan( dOut, dIn, numElements );
 }
 
 unsigned int OpenCL::reduce( cl_mem dIn, size_t numElements )
@@ -238,44 +225,6 @@ void OpenCL::sortUIntUInt(cl_mem dKeys, cl_mem dValues, size_t numElements)
 
 }
 
-//void OpenCL::sortUIntCells(cl_mem dKeys, cl_mem dValues, size_t numElements)
-//{
-//	/*boost::compute::command_queue queue( m_commandQueue );
-//
-//	boost::compute::buffer bufKeys( dKeys );
-//	boost::compute::buffer bufValues( dValues );
-//
-//	boost::compute::sort_by_key( boost::compute::make_buffer_iterator<unsigned int>( bufKeys, 0 ), boost::compute::make_buffer_iterator<unsigned int>( bufKeys, numElements ),
-//									boost::compute::make_buffer_iterator<CellOnDevice>( bufValues, 0 ), queue );
-//	queue.finish();*/
-//
-//	// As long as boost::compute doesn't fix the sort_by_key function, use the cpu
-//	unsigned int* pKeys = new unsigned int[ numElements ];
-//	copyFromDev( pKeys, dKeys, numElements );
-//
-//	CellOnDevice* pValues = new CellOnDevice[ numElements ];
-//	copyFromDev( pValues, dValues, numElements );
-//
-//	std::multimap<unsigned int, CellOnDevice> mapCells;
-//
-//	for( unsigned int i = 0; i < numElements; ++i )
-//	{
-//		mapCells.insert( std::make_pair( pKeys[ i ], pValues[ i ] ) );
-//	}
-//
-//	unsigned int i = 0;
-//	for( std::multimap<unsigned int, CellOnDevice>::iterator it = mapCells.begin(); it != mapCells.end(); ++it, ++i )
-//	{
-//		pKeys[ i ] = it->first;
-//		pValues[ i ] = it->second;
-//	}
-//
-//	copyToDev( dKeys, pKeys, numElements );
-//	copyToDev( dValues, pValues, numElements );
-//
-//	delete[] pKeys;
-//	delete[] pValues;
-//}
 
 void OpenCL::sortFloatUInt(cl_mem dKeys, cl_mem dValues, size_t numElements)
 {
@@ -290,9 +239,18 @@ void OpenCL::sortFloatUInt(cl_mem dKeys, cl_mem dValues, size_t numElements)
 
 unsigned int OpenCL::getTotalAvailableVRAM()
 {
-	// TODO: Implement
-	return 0;
+	cl_ulong size;
+	clGetDeviceInfo( m_device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &size, nullptr );
+	return size;
 }
+
+int OpenCL::getFreeVRAM()
+{
+	cl_ulong size;
+	clGetDeviceInfo( m_device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &size, nullptr );
+	return size-m_reservedMemory;
+}
+
 
 Kernel* OpenCL::createKernel(std::string strKernelName, std::string strFileName)
 {
@@ -321,31 +279,31 @@ Kernel* OpenCL::createKernel(std::string strKernelName, std::string strFileName)
 		char *program_buffer;
 		size_t program_size, log_size;
 
-		/* Read program file and place content into buffer */
+		// Read program file and place content into buffer
 		program_handle = fopen( (m_strKernelFolder + strFileName).c_str(), "r" );
 		if(program_handle == NULL)
 		{
 			Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Unable to find file " << strFileName << " in the folder " << m_strKernelFolder << Log::endl;
 			return NULL;
 		}
-		fseek(program_handle, 0, SEEK_END);
-		program_size = ftell(program_handle);
-		rewind(program_handle);
-		program_buffer = (char*)malloc(program_size + 1);
+		fseek( program_handle, 0, SEEK_END );
+		program_size = ftell( program_handle );
+		rewind( program_handle );
+		program_buffer = (char*)malloc( program_size + 1 );
 		program_buffer[program_size] = '\0';
-		fread(program_buffer, sizeof(char), program_size, program_handle);
-		fclose(program_handle);
+		fread( program_buffer, sizeof( char ), program_size, program_handle );
+		fclose( program_handle );
 
-		/* Create program from file */
-		program = clCreateProgramWithSource(m_context, 1, (const char**)&program_buffer, &program_size, &iErr);
-		if( iErr != CL_SUCCESS )
+		// Create program from file
+		program = clCreateProgramWithSource( m_context, 1, (const char**)&program_buffer, &program_size, &iErr );
+		if ( iErr != CL_SUCCESS )
 		{
 			Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Unable to create the program from file " << strFileName << Log::endl;
 			return NULL;
 		}
 		free(program_buffer);
 
-		/* Build program */
+		// Build program
 		std::string strBuildParams( "-I " + m_strKernelFolder );
 
 		// if this is a debug build and we are on a CPU use the debug option!
@@ -356,11 +314,11 @@ Kernel* OpenCL::createKernel(std::string strKernelName, std::string strFileName)
 			strBuildParams += " -g";
 #else
 		strBuildParams += " -cl-unsafe-math-optimizations -cl-mad-enable -cl-no-signed-zeros";
-#endif
+#endif // DEBUG
 
 #ifdef MAC
 		strBuildParams += " -DMAC";
-#endif
+#endif // MAC
 
 		iErr = clBuildProgram(program, 0, NULL, strBuildParams.c_str(), NULL, NULL);
 		if( iErr != CL_SUCCESS )
@@ -388,7 +346,7 @@ Kernel* OpenCL::createKernel(std::string strKernelName, std::string strFileName)
 			Log::getLog("GPUAbstractionLayer") << Log::EL_INFO << "Build log for file " << strFileName << ":\n" << program_log << "\n" << Log::endl;
 			free(program_log);
 		}
-#endif
+#endif // DEBUG
 
 		// insert program into map
 		m_mapPrograms.insert( std::make_pair( strFileName, program ) );
@@ -552,3 +510,5 @@ OpenCL::~OpenCL()
 	clReleaseCommandQueue( m_commandQueue );
 	clReleaseContext( m_context );
 }
+
+#endif // USE_OPENCL

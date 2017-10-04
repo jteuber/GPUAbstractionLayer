@@ -1,3 +1,5 @@
+#ifdef USE_OPENCL
+
 #include "Kernel.h"
 
 #include <algorithm>
@@ -76,5 +78,6 @@ Kernel::Kernel( cl_command_queue cmdQueue, cl_kernel kernel, unsigned int uiMaxW
 	, m_uiNumArguments( 0 )
 	, m_uiMaxWorkGroupSize( uiMaxWorkGroupSize )
 {
-
 }
+
+#endif // USE_OPENCL

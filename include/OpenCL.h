@@ -1,6 +1,8 @@
 #ifndef OPENCL_H
 #define OPENCL_H
 
+#ifdef USE_OPENCL
+
 #include <string>
 #include <map>
 
@@ -8,7 +10,7 @@
 #include <OpenCL/cl.h>
 #else
 #include <CL/cl.h>
-#endif
+#endif // MAC
 
 #include "Kernel.h"
 #include "Log.h"
@@ -27,7 +29,7 @@ public:
 	template<typename T> cl_mem copyToDev( T* hData, unsigned int uiNrOfElements );
 	template<typename T> cl_mem copyToConstant( T* hData, unsigned int uiNrOfElements );
 
-	void devDelete( cl_mem dData);
+	void devDelete( cl_mem dData, size_t sizeInBytes );
 	template<typename T> void devMemSet( cl_mem dData, unsigned int uiNrOfElements, int data = 0 );
 
 
@@ -44,6 +46,7 @@ public:
 
 
 	unsigned int getTotalAvailableVRAM();
+	int getFreeVRAM();
 
 	Kernel* createKernel( std::string strKernelName, std::string strFileName );
 	Kernel* createKernel( std::string strKernelSource );
@@ -68,6 +71,8 @@ private:
 
 	unsigned int m_uiMaxWorkGroupSize;
 	std::string m_strKernelFolder;
+
+	size_t m_reservedMemory;
 };
 
 
@@ -76,6 +81,8 @@ cl_mem OpenCL::devNew(unsigned int uiNrOfElements)
 {
 	int iErr;
 	cl_mem mem = clCreateBuffer( m_context, CL_MEM_READ_WRITE, uiNrOfElements * sizeof(T), NULL, &iErr );
+
+	m_reservedMemory += uiNrOfElements * sizeof(T);
 
 	if( iErr != CL_SUCCESS )
 	{
@@ -91,6 +98,8 @@ cl_mem OpenCL::copyToDev(T* hData, unsigned int uiNrOfElements)
 {
 	int iErr;
 	cl_mem mem = clCreateBuffer( m_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, uiNrOfElements * sizeof( T ), (void*)hData, &iErr );
+
+	m_reservedMemory += uiNrOfElements * sizeof(T);
 
 	if( iErr != CL_SUCCESS )
 	{
@@ -119,18 +128,19 @@ cl_mem OpenCL::copyToConstant(T* hData, unsigned int uiNrOfElements)
 template<typename T>
 void OpenCL::devMemSet(cl_mem dData, unsigned int uiNrOfElements, int data)
 {
-#if defined(CL_VERSION_1_2)
-	int iErr = clEnqueueFillBuffer( m_commandQueue, dData, (void*)&data, sizeof( int ), 0, uiNrOfElements * sizeof( int ), 0, NULL, NULL );
-	if( iErr != CL_SUCCESS )
-	Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error mem-setting an OpenCL buffer (" << errorNumberToString( iErr ) << ")" << Log::endl;
-#else
+	// TODO: Does not work on NVIDIA NVS 5400M
+//#if defined(CL_VERSION_1_2)
+//	int iErr = clEnqueueFillBuffer( m_commandQueue, dData, (void*)&data, sizeof( int ), 0, uiNrOfElements * sizeof( int ), 0, NULL, NULL );
+//	if( iErr != CL_SUCCESS )
+//		Log::getLog("ProtoSphere") << Log::EL_ERROR << "Error mem-setting an OpenCL buffer (" << errorNumberToString( iErr ) << ")" << Log::endl;
+//#else
 	T* result = (T*)malloc(uiNrOfElements*sizeof(T));
 	memset(result, data, uiNrOfElements*sizeof(T));
 
 	copyToDev( dData, result, uiNrOfElements );
 
 	free(result);
-#endif
+//#endif
 }
 
 
@@ -157,5 +167,7 @@ void OpenCL::copyDevToDev( cl_mem dest, const cl_mem src, unsigned int uiNrOfEle
 	if( iErr != CL_SUCCESS )
 		Log::getLog("GPUAbstractionLayer") << Log::EL_ERROR << "Error copying an OpenCL buffer to another buffer (" << errorNumberToString( iErr ) << ")" << Log::endl;
 }
+
+#endif // USE_OPENCL
 
 #endif // OPENCL_H

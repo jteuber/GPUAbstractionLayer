@@ -46,18 +46,26 @@ public:
 
 
 	unsigned int getTotalAvailableVRAM();
+	int getFreeVRAM();
 
 	EGPGPUType getType() const;
+#ifdef USE_CUDA
 	Cuda* getRawCUDA() { return m_pCuda; }
+#endif // USE_CUDA
+#ifdef USE_OPENCL
 	OpenCL* getRawOpenCL() { return m_pOpenCL; }
+#endif // USE_OPENCL
 
 private:
 	static GPUWrapper* sm_pInstance;
 
+#ifdef USE_CUDA
 	Cuda* m_pCuda;
+#endif // USE_CUDA
+#ifdef USE_OPENCL
 	OpenCL* m_pOpenCL;
+#endif // USE_OPENCL
 
-private:
 	GPUWrapper();
 	virtual ~GPUWrapper();
 };
@@ -67,28 +75,35 @@ template<typename T>
 DevMem<T>* GPUWrapper::devNew( unsigned int size )
 {
 	if( size == 0 )
-		return NULL;
+		return 0;
 
-	DevMem<T>* pTemp = NULL;
-	if( m_pCuda != NULL )
+	DevMem<T>* pTemp = 0;
+#ifdef USE_CUDA
+	if( m_pCuda )
 	{
 		pTemp = new DevMem<T>( m_pCuda->devNew<T>( size ), size );
 	}
-	else if( m_pOpenCL != NULL )
+#ifdef USE_OPENCL
+	else
+#endif // USE_OPENCL
+#endif // USE_CUDA
+#ifdef USE_OPENCL
+	if( m_pOpenCL )
 	{
 		pTemp = new DevMem<T>( m_pOpenCL->devNew<T>( size ), size );
 	}
+#endif // USE_OPENCL
 
 	// make sure that the memory is valid before returning
-	if( pTemp != NULL )
+	if ( pTemp )
 	{
-		if( pTemp->isValid() )
+		if ( pTemp->isValid() )
 			return pTemp;
 		else // if not, delete the invalid object
 			delete pTemp;
 	}
 
-	return NULL;
+	return 0;
 }
 
 template<typename T>
@@ -96,16 +111,23 @@ DevMem<T>* GPUWrapper::devNew(unsigned int size, int data)
 {
 	DevMem<T>* pTemp = devNew<T>( size );
 
-	if( pTemp != NULL )
+	if ( pTemp)
 	{
-		if( m_pCuda != NULL )
+#ifdef USE_CUDA
+		if ( m_pCuda != NULL )
 		{
 			m_pCuda->devMemSet( pTemp->getCUDA(), size, data );
 		}
-		else if( m_pOpenCL != NULL )
+#ifdef USE_OPENCL
+		else
+#endif // USE_OPENCL
+#endif // USE_CUDA
+#ifdef USE_OPENCL
+		if ( m_pOpenCL != NULL )
 		{
 			m_pOpenCL->devMemSet<T>( pTemp->getOCL(), size, data );
 		}
+#endif // USE_OPENCL
 	}
 
 	return pTemp;
@@ -115,6 +137,7 @@ DevMem<T>* GPUWrapper::devNew(unsigned int size, int data)
 template<typename T>
 DevMem<T>* GPUWrapper::copyToDev(const T* hostData, unsigned int uiNrOfElements)
 {
+#ifdef USE_CUDA
 	if( m_pCuda != NULL )
 	{
 		DevMem<T>* pTemp = devNew<T>( uiNrOfElements );
@@ -122,12 +145,18 @@ DevMem<T>* GPUWrapper::copyToDev(const T* hostData, unsigned int uiNrOfElements)
 
 		return pTemp;
 	}
-	else if( m_pOpenCL != NULL )
+#ifdef USE_OPENCL
+	else
+#endif // USE_OPENCL
+#endif // USE_CUDA
+#ifdef USE_OPENCL
+	if ( m_pOpenCL != NULL )
 	{
 		return new DevMem<T>( m_pOpenCL->copyToDev( hostData, uiNrOfElements ), uiNrOfElements );
 	}
+#endif // USE_OPENCL
 
-	return NULL;
+	return 0;
 }
 
 #endif // IGPGPU_H
